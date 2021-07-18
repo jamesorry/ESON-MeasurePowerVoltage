@@ -9,7 +9,7 @@
 #define LCD_SHOW_DEBUG_MSG	0
 #define LCD_SHOW_DEBUG_MSG_LINE	7
 
-#define TIME_RECIVE_DATA_DELAY		0
+#define TIME_RECIVE_DATA_DELAY		50
 #define TIME_RECIVE_DATA_OVERDUE	1000
 
 typedef struct {
@@ -65,8 +65,8 @@ public:
 		bool 		MsgUpdate;
 		uint16_t	Receive_PeriodTime;
 		uint16_t	Receive_Peak2Peak;
-	HMI_Command(HardwareSerial* cmdport, const uint32_t baudrate=115200, const uint8_t reqid=0xFC, const uint8_t resid=0xFD, const bool skipid=false);
-	HMI_Command(SoftwareSerial* cmdport, const uint32_t baudrate=115200, const uint8_t reqid=0xFC, const uint8_t resid=0xFD, const bool skipid=false);
+	HMI_Command(HardwareSerial* cmdport, const uint32_t baudrate=115200, const uint8_t reqid=0xF1, const uint8_t resid=0xF9, const bool skipid=false);
+	HMI_Command(SoftwareSerial* cmdport, const uint32_t baudrate=115200, const uint8_t reqid=0xF1, const uint8_t resid=0xF9, const bool skipid=false);
 	~HMI_Command();
 	
 	void Process(void);
@@ -85,9 +85,11 @@ public:
 	void Request_Average_Time_Volt();
 	void Request_Mode_select(uint8_t Data=0);
 
+    void Request_Voltage_Result(uint32_t V_bus, uint32_t V1, uint32_t V2, uint32_t V3, uint32_t V4);
+    void Request_Wattage_Result(uint32_t Wattage);
+    void Request_StartStop(uint8_t State);
 
-	
-
+    
 	bool Send_Command(uint8_t cmdid, uint8_t tagid, uint8_t hmiid);
 	bool Send_Command(uint8_t cmdid, uint8_t tagid, uint8_t hmiid, uint8_t data);
 
@@ -106,6 +108,14 @@ public:
 #define QUEUE_DATA_TYPE_INDICATION	1
 
 #define HMI_CMD_RETRY_MAX	0	//10
+
+//For Eson Measure Power Voltage project
+#define HMI_CMD_PING							0x00
+#define HMI_CMD_RECORD_VOLTAGE_RESELT			0x01
+#define HMI_CMD_RECORD_WATTAGE_RESELT			0x02
+#define HMI_CMD_START_STOP_READING  			0x03
+
+
 
 
 //誠盈案子專用---------------------------------------

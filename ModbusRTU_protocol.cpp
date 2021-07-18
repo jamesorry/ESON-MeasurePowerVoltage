@@ -30,6 +30,8 @@ ModbusRTU_Protocol::ModbusRTU_Protocol(HardwareSerial* cmdport, const uint32_t b
 #endif
 	
 	cmdRec.datalen = 0;
+    DataBuffLen = 0;
+
 	ProcessIndex = 0;
 	ProcessTimeCnt = 0;
 }
@@ -49,6 +51,7 @@ ModbusRTU_Protocol::ModbusRTU_Protocol(SoftwareSerial* cmdport, const uint32_t b
 #endif
 
 	cmdRec.datalen = 0;
+    DataBuffLen = 0;
 	ProcessIndex = 0;
 	ProcessTimeCnt = 0;
 }
@@ -76,8 +79,9 @@ void ModbusRTU_Protocol::SendCommandQ(void)
 				cmd_port->print(String(cmdRec.data[i], HEX)+ " ");
 			cmd_port->println();
 #endif
-			if(cmdRec.retrycnt < MBRTU_CMD_RETRY_MAX)
+			if(cmdRec.retrycnt < MBRTU_CMD_RETRY_MAX){
 				cmdRec.retrycnt ++;
+             }
 			else
 				cmdRec.datalen = 0;
 
@@ -108,9 +112,10 @@ void ModbusRTU_Protocol::Process(void)
 			if(modbus_port->available())
 			{
 #if Modbus_DEBUG	
-				cmd_port->println("acservo_port->available()");
+				cmd_port->println("modbus_port->available()");
 #endif
 				ProcessTimeCnt = millis();
+				cmd_port->println("ProcessTimeCnt: " + String(ProcessTimeCnt));
 				reclen = 0;
 				ProcessIndex ++;
 			}
@@ -118,10 +123,10 @@ void ModbusRTU_Protocol::Process(void)
 		}
 		case 1:
 		{
-			if((millis() - ProcessTimeCnt) > 50)
+			if((millis() - ProcessTimeCnt) > TIME_RECIVE_DATA_DELAY)
 			{
 #if Modbus_DEBUG	
-				cmd_port->println("delay 50ms");
+				cmd_port->println("delay " + String(TIME_RECIVE_DATA_DELAY) +" ms");
 #endif
 				ProcessIndex ++;
 			}
@@ -132,25 +137,109 @@ void ModbusRTU_Protocol::Process(void)
 			while(modbus_port->available())
 			{
 				ret = modbus_port->read();
-				recdata[reclen++] = (char)ret;
+                DataBuff[DataBuffLen++] = (char)ret;
+//				recdata[reclen++] = (char)ret;
 			}
 #if Modbus_DEBUG	
-			cmd_port->print("MACServo_Protocol recive (" + String(reclen) + String("): ") );
-			for(i=0; i<reclen; i++)
-				cmd_port->print(String(recdata[i], HEX)+ String(","));
+//			cmd_port->print("Modbus_Protocol recive (" + String(reclen) + String("): ") );
+//			for(i=0; i<reclen; i++)
+//				cmd_port->print(String(recdata[i], HEX)+ String(","));
+			cmd_port->print("Modbus_Protocol recive (" + String(DataBuffLen) + String("): ") );
+			for(i=0; i<DataBuffLen; i++)
+				cmd_port->print(String(DataBuff[i], HEX)+ String(","));
 			cmd_port->println();
 #endif
-	
-			CheckReciveData();
+	        ReciveTime = millis();
 			ProcessIndex = 0;
 			break;
 		}
 	}
+    while(SplitRecvice()){
+        CheckReciveData();
+        cmd_port->println("SplitRecvice ING.");
+    }
 	SendCommandQ();
 }
 
 
-uint16_t ModbusRTU_Protocol::ComputeCRC(uint8_t *buf, uint8_t length) 
+bool ModbusRTU_Protocol::SplitRecvice(void)
+{
+	int i, starti=-1, endi=-1;
+	bool result = false;
+	if(DataBuffLen >= 129)	
+		DataBuffLen = 0;
+	if(DataBuffLen >= MBRTU_CMD_LEN_BASE)
+	{
+		//for(i=0; i<DataBuffLen-2; i++)
+		for(i=0; i<=DataBuffLen; i++)
+			if((DataBuff[i] == 0x01))
+			{
+				if((DataBuff[i+1] == 0x04) || (DataBuff[i+1] == 0x84)) //Data Length
+				{
+					bool match = true;
+//					if(((DataBuff[i+1] == 9) || (DataBuff[i+1] == 13))
+//						&&(DataBuff[i+2] == 0x08))//HMI_CMD_DATA_INDICATION
+//					{
+//						if((DataBuff[i+4] == ControllerTagID) || (DataBuff[i+4] == ResponseTagID)
+//							|| (DataBuff[i+5] == ControllerTagID) || (DataBuff[i+5] == ResponseTagID)
+//							|| (DataBuff[i+6] == ControllerTagID) || (DataBuff[i+6] == ResponseTagID)
+//							|| (DataBuff[i+7] == ControllerTagID) || (DataBuff[i+7] == ResponseTagID)
+//							)
+//							match = false;
+//					}
+					if(match)
+					{
+						starti = i;
+						break;
+					}
+				}
+			}
+		if(starti > -1)
+		{
+			endi = DataBuff[starti + MBRTU_CMD_BYTE_LENGTH] + 5;
+			if(DataBuffLen >= endi)
+			{
+#if Modbus_DEBUG	
+					cmd_port->println("SplitRecvice Datlen: " + String(DataBuffLen) +", Starti: " + String(starti));
+					cmd_port->println("Len: " + String(DataBuff[MBRTU_CMD_BYTE_LENGTH]) + ", Endi: " + String(endi));
+#endif
+				memcpy(recdata, &DataBuff[starti], DataBuff[MBRTU_CMD_BYTE_LENGTH]+5);
+				reclen = DataBuff[MBRTU_CMD_BYTE_LENGTH]+5;
+#if Modbus_DEBUG	
+					cmd_port->println("SplitRecvice: ");
+					for(i=0; i<reclen; i++)
+						cmd_port->print(String(recdata[i], HEX) + " ");
+					cmd_port->println();
+#endif
+				for(i=0; i<DataBuffLen-(reclen+starti); i++)
+					DataBuff[i] = DataBuff[starti+i];
+				DataBuffLen -= (reclen+starti);
+				result = true;
+#if Modbus_DEBUG	
+					cmd_port->println("SplitRecvice result: " + String(result));
+					cmd_port->print("HIM Data Buff (" + String(DataBuffLen) + String("): ") );
+					for(i=0; i<DataBuffLen; i++)
+						cmd_port->print(String(DataBuff[i], HEX)+ String(","));
+					cmd_port->println();
+#endif
+			}
+		}
+	}
+
+	if(DataBuffLen > 0)
+		if(!result && ((millis() - ReciveTime) > TIME_RECIVE_DATA_OVERDUE))
+		{
+#if Modbus_DEBUG	
+				cmd_port->println("millis: " + String(millis()) + ", ReciveTime: " + String(ReciveTime));
+				cmd_port->println("Clear DataBuff(" + String(DataBuffLen) + ")");
+#endif
+			DataBuffLen = 0;
+		}
+	return result;
+}
+
+
+uint16_t ModbusRTU_Protocol::ComputeCRC(uint8_t *buf, uint8_t length)
 {
 	unsigned short crc = 0xFFFF;
 	int i, j;
@@ -176,31 +265,32 @@ bool ModbusRTU_Protocol::CheckReciveData()
 	uint8_t cmp_crc_Hi, cmp_crc_Lo;
 	long value;
 	uint16_t CheckCRC;
+    runtimedata.WattageReadData = -1;
 	if(recdata[0] != 0x01)
 	{
-#if Modbus_DEBUG	
+#if 0//Modbus_DEBUG	
 		cmd_port->println("Byte 0: " + String(recdata[0], HEX) + " != 0x01");
 #endif
 		return false;
 	}
 	rec_crc_Hi = recdata[reclen - 1];
 	rec_crc_Lo = recdata[reclen - 2];
-#if Modbus_DEBUG
+#if 0//Modbus_DEBUG
 	cmd_port->println("rec_crc_Lo: " + String(rec_crc_Lo, HEX));
 	cmd_port->println("rec_crc_Hi: " + String(rec_crc_Hi, HEX));
 #endif
 	CheckCRC = ComputeCRC(recdata, reclen-2);
 	cmp_crc_Hi = CheckCRC & 0xff;
 	cmp_crc_Lo = CheckCRC >> 8;
-#if Modbus_DEBUG
+#if 0//Modbus_DEBUG
 	cmd_port->println("cmp_crc_Lo: " + String(cmp_crc_Lo, HEX));
 	cmd_port->println("cmp_crc_Hi: " + String(cmp_crc_Hi, HEX));
 #endif
-	cmdRec.datalen = 0;
+	
 	if((cmp_crc_Hi != rec_crc_Hi))
 	{
 		
-#if Modbus_DEBUG
+#if 0//Modbus_DEBUG
 		cmd_port->println("CRC Hi Fail: " + String(rec_crc_Hi, HEX) + " != " +  String(cmp_crc_Hi, HEX));
 #endif
 		return false;
@@ -208,11 +298,25 @@ bool ModbusRTU_Protocol::CheckReciveData()
 	
 	if((cmp_crc_Lo != rec_crc_Lo))
 	{
-#if Modbus_DEBUG	
+#if 0//Modbus_DEBUG	
 		cmd_port->println("CRC Lo Fail: " + String(rec_crc_Lo, HEX) + " != " +	String(cmp_crc_Lo, HEX));
 #endif
 		return false;
 	}
+    
+	
+    if(recdata[1] == 0x04)
+    {
+		if(recdata[2] == 0x04)
+		{
+			value = ((uint32_t) recdata[4])
+					|((uint32_t) recdata[3]<<8)
+					|((uint32_t) recdata[6]<<16)
+					|((uint32_t) recdata[5]<<24);
+			cmd_port->println("Wattage value: " + String(value));
+            runtimedata.WattageReadData = value;
+		}
+    }
 	if(recdata[1] == 0x03)
 	{	//讀取暫存器
 		if(recdata[2] == 0x02)
@@ -230,10 +334,34 @@ bool ModbusRTU_Protocol::CheckReciveData()
 			cmd_port->println("value: " + String(value));
 		}
 	}
-	
+	if(recdata[1] == 0x84){}//Error Msg
+	cmdRec.datalen = 0;
 	return true;
 }
 
+bool ModbusRTU_Protocol::SendWattageCommand()
+{
+	ModbusRTUCmdRec rec;
+	int i;
+    uint8_t StartAddr = 0x03;
+    uint8_t EndAddr = 0x02;
+	uint16_t CheckCRC;
+    rec.datalen = 8;
+    rec.data[MBRTU_CMD_BYTE_ID] = 0x01;
+    rec.data[MBRTU_CMD_BYTE_FUNCTION] = 0x04;
+    for(uint8_t i=0; i<2; i++)
+        rec.data[MBRTU_CMD_BYTE_Addr + i] = (StartAddr >> (1-i)*8)& 0xff;
+    for(uint8_t i=0; i<2; i++)
+        rec.data[MBRTU_CMD_BYTE_Data + i] = (EndAddr >> (1-i)*8)& 0xff;
+	CheckCRC = ComputeCRC(rec.data, rec.datalen-2);
+	rec.data[rec.datalen-1] = CheckCRC & 0xff;
+	rec.data[rec.datalen-2] = CheckCRC >> 8;	
+
+	rec.retrycnt = 0;
+//    runtimedata.ReadWattageRetryTimes = 0;
+	cmdQueue->push(&rec);
+	return true;
+}
 bool ModbusRTU_Protocol::Send_Command(uint8_t      ID,  uint8_t FunctionCode, uint32_t Addr, uint32_t Datacnt, uint32_t value)
 {
 
@@ -278,7 +406,6 @@ bool ModbusRTU_Protocol::Send_Command(uint8_t      ID,  uint8_t FunctionCode, ui
 	cmdQueue->push(&rec);
 	return true;
 }
-
 
 bool ModbusRTU_Protocol::Set_RPM(uint32_t value)
 {

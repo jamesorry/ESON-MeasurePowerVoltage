@@ -258,7 +258,7 @@ void HMI_Command::Process(void)
 				recdata[reclen++] = (char)ret;
 			}
 			MsgUpdate = true;
-//			Update = true;
+            runtimedata.UpdateHMIReceive = true;
 #if HMI_CMD_DEBUG	
 				cmd_port->print("HMI CMD recive (" + String(reclen) + String("): ") );
 				for(i=0; i<reclen; i++)
@@ -295,7 +295,6 @@ void HMI_Command::ReciveDataTest(uint8_t *data, uint8_t datalen)
 	//	CheckReciveData();
 	
 }
-
 
 uint8_t HMI_CMD_ComputeCRC(uint8_t *buff)
 {
@@ -339,6 +338,78 @@ void HMI_Command::Request_Ping()
 
 #if HMI_CMD_DEBUG
 	cmd_port->println("Request_Ping()");
+#endif
+	return true;
+}
+
+void HMI_Command::Request_Voltage_Result(uint32_t V_bus, uint32_t V1, uint32_t V2, uint32_t V3, uint32_t V4)
+{
+	uint8_t i;
+	HMICmdRec rec;
+	rec.datatype = QUEUE_DATA_TYPE_INDICATION;
+	rec.data[HMI_CMD_BYTE_TAGID] = ControllerTagID;
+	rec.data[HMI_CMD_BYTE_LENGTH] = HMI_CMD_LEN_BASE + 12;
+	rec.data[HMI_CMD_BYTE_CMDID] = 0x01;
+    
+	for(uint8_t i=0; i<4; i++)
+		rec.data[HMI_CMD_BYTE_DATA+i] = (V_bus >> (3-i)*8)& 0xff;
+	for(uint8_t i=4; i<6; i++)
+		rec.data[HMI_CMD_BYTE_DATA+i] = (V1 >> (5-i)*8)& 0xff;
+	for(uint8_t i=6; i<8; i++)
+		rec.data[HMI_CMD_BYTE_DATA+i] = (V2 >> (7-i)*8)& 0xff;    
+	for(uint8_t i=8; i<10; i++)
+		rec.data[HMI_CMD_BYTE_DATA+i] = (V3 >> (9-i)*8)& 0xff;
+	for(uint8_t i=10; i<12; i++)
+		rec.data[HMI_CMD_BYTE_DATA+i] = (V4 >> (11-i)*8)& 0xff;
+	rec.data[rec.data[HMI_CMD_BYTE_LENGTH]-1] = HMI_CMD_ComputeCRC(rec.data);
+	rec.datalen = rec.data[HMI_CMD_BYTE_LENGTH];
+	rec.retrycnt = 0;
+	cmdQueue->push(&rec);
+
+#if HMI_CMD_DEBUG
+	cmd_port->println("Request_Voltage_Result()");
+#endif
+	return true;
+}
+
+void HMI_Command::Request_Wattage_Result(uint32_t Wattage)
+{
+	uint8_t i;
+	HMICmdRec rec;
+	rec.datatype = QUEUE_DATA_TYPE_INDICATION;
+	rec.data[HMI_CMD_BYTE_TAGID] = ControllerTagID;
+	rec.data[HMI_CMD_BYTE_LENGTH] = HMI_CMD_LEN_BASE + 4;
+	rec.data[HMI_CMD_BYTE_CMDID] = 0x02;
+    
+	for(uint8_t i=0; i<4; i++)
+		rec.data[HMI_CMD_BYTE_DATA+i] = (Wattage >> (3-i)*8)& 0xff;
+	rec.data[rec.data[HMI_CMD_BYTE_LENGTH]-1] = HMI_CMD_ComputeCRC(rec.data);
+	rec.datalen = rec.data[HMI_CMD_BYTE_LENGTH];
+	rec.retrycnt = 0;
+	cmdQueue->push(&rec);
+
+#if HMI_CMD_DEBUG
+	cmd_port->println("Request_Wattage_Result()");
+#endif
+	return true;
+}
+
+void HMI_Command::Request_StartStop(uint8_t State)
+{
+	uint8_t i;
+	HMICmdRec rec;
+	rec.datatype = QUEUE_DATA_TYPE_INDICATION;
+	rec.data[HMI_CMD_BYTE_TAGID] = ControllerTagID;
+	rec.data[HMI_CMD_BYTE_LENGTH] = HMI_CMD_LEN_BASE + 1;
+	rec.data[HMI_CMD_BYTE_CMDID] = 0x03;
+    rec.data[HMI_CMD_BYTE_DATA] = State;
+	rec.data[rec.data[HMI_CMD_BYTE_LENGTH]-1] = HMI_CMD_ComputeCRC(rec.data);
+	rec.datalen = rec.data[HMI_CMD_BYTE_LENGTH];
+	rec.retrycnt = 0;
+	cmdQueue->push(&rec);
+
+#if HMI_CMD_DEBUG
+	cmd_port->println("Request_StartStop()");
 #endif
 	return true;
 }
@@ -549,7 +620,7 @@ uint8_t HMI_Command::CheckReciveData()
 #endif
 		return -1;
 	}
-#if HMI_CMD_DEBUG	
+#if 0//HMI_CMD_DEBUG	
 		cmd_port->println("CheckReciveData reclen: " + String(reclen));
 #endif
 		//&& (recdata[HMI_CMD_BYTE_HMIID] == maindata.HMI_ID)
@@ -612,44 +683,20 @@ uint8_t HMI_Command::CheckReciveData()
 					issupportcmd = true;
 					return 0;
 					break;
-				case HMI_CMD_RECORD_MODE_RESELT:
-					cmd_port->println("HMI_CMD_RECORD_MODE_RESELT.");
+				case HMI_CMD_RECORD_VOLTAGE_RESELT:
+					cmd_port->println("HMI_CMD_RECORD_VOLTAGE_RESELT.");
 					issupportcmd = true;
 					return 1;
 					break;
-				case HMI_CMD_MODE_SELECT:
-					cmd_port->println("HMI_CMD_MODE_SELECT.");
+				case HMI_CMD_RECORD_WATTAGE_RESELT:
+					cmd_port->println("HMI_CMD_RECORD_WATTAGE_RESELT.");
 					issupportcmd = true;
 					return 2;
 					break;
-				case HMI_CMD_START_TIME_PARAMETER:
-					cmd_port->println("HMI_CMD_START_TIME_PARAMETER.");
+				case HMI_CMD_START_STOP_READING:
+					cmd_port->println("HMI_CMD_START_STOP_READING.");
 					issupportcmd = true;
 					return 3;
-					break;
-				case HMI_CMD_NORMAL_MODE_END_RESULT:
-					cmd_port->println("HMI_CMD_NORMAL_MODE_END_RESULT.");
-					issupportcmd = true;
-					return 4;
-					break;
-				case HMI_CMD_LAUNCH_STOP:
-					cmd_port->println("HMI_CMD_LAUNCH_STOP.");
-					issupportcmd = true;
-					return 5;
-					break;
-				case HMI_CMD_Average_TIME_VOLT:
-					cmd_port->println("HMI_CMD_Average_TIME_VOLT.");
-					Receive_PeriodTime = recdata[HMI_CMD_BYTE_CMDID+1]<<8 | recdata[HMI_CMD_BYTE_CMDID+2];
-					Receive_Peak2Peak = recdata[HMI_CMD_BYTE_CMDID+3]<<8 | recdata[HMI_CMD_BYTE_CMDID+4];
-					cmd_port->println("Receive_PeriodTime: " + String(Receive_PeriodTime));
-					cmd_port->println("Receive_Peak2Peak: " + String(Receive_Peak2Peak));
-					issupportcmd = true;
-					return 6;
-					break;
-				case HMI_CMD_Set_Test_Type:
-					cmd_port->println("HMI_CMD_Set_Test_Type.");
-					issupportcmd = true;
-					return 7;
 					break;
 			}
 			if(issupportcmd)

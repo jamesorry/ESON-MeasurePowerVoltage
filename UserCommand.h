@@ -20,13 +20,11 @@ void showHelp(void);
 bool getNextArg(String &arg);
 void cmdOutput(void);
 void cmdInput(void);
-void cmdTestModbusRTU(void);
-void Cmd_SetRPM(void);
-void cmd_SetStep(void);
-void cmd_Absolute_position(void);
-void cmd_Emergency_Stop(void);
-void cmd_Search_Home(void);
-void cmd_SendCommandTest(void);
+void cmd_ESONCommandTest(void);
+void cmd_ReadVoltage(void);
+void cmd_Workindex(void);
+void cmd_ReadWattage();
+void cmd_SendStartStop();
 
 
 void UserCommand_Task(void);

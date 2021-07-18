@@ -6,15 +6,19 @@
 #include <SoftwareSerial.h>
 
 #define MBRTU_CMD_DATA_MAX_LEN 		128
-#define TIME_MBRTU_CMD_INTERVAL		500
-#define MBRTU_CMD_RETRY_MAX			3
+#define TIME_MBRTU_CMD_INTERVAL		1000
+#define MBRTU_CMD_RETRY_MAX			0
+#define MBRTU_CMD_LEN_BASE			4
 
 #define MBRTU_CMD_BYTE_ID			0
 #define MBRTU_CMD_BYTE_FUNCTION		1
 #define MBRTU_CMD_BYTE_Addr			2
 #define MBRTU_CMD_BYTE_Data			4
 #define MBRTU_CMD_BYTE				6
+#define MBRTU_CMD_BYTE_LENGTH       2
 
+#define TIME_RECIVE_DATA_DELAY		50
+#define TIME_RECIVE_DATA_OVERDUE    1000
 
 typedef struct{
 	uint8_t datatype;
@@ -37,8 +41,17 @@ private:
 	
 	uint16_t SendCmdTimeCnt = 0;
 	String 	 Command;
+    
+	uint32_t	ReciveTime;
+
+	bool skipHMI_ID;
+	uint8_t DataBuff[MBRTU_CMD_DATA_MAX_LEN];
+	uint8_t DataBuffLen;
 public:
 	bool     Update;
+    uint8_t     ControllerTagID;
+    uint8_t     ResponseTagID;
+    uint8_t     Receive_HMI_CMD;
 	uint8_t  recdata[MBRTU_CMD_DATA_MAX_LEN];
 	uint8_t  reclen;
 
@@ -49,7 +62,9 @@ public:
 	void SendCommandQ(void);
 	void Process(void);
 	uint16_t ComputeCRC(uint8_t *buf, uint8_t length);
+    bool SendWattageCommand();
 	bool Send_Command(uint8_t      ID,  uint8_t FunctionCode, uint32_t Addr, uint32_t Datacnt, uint32_t value);
+    bool SplitRecvice(void);
 	bool CheckReciveData();
 
 	bool Set_RPM(uint32_t RPM);

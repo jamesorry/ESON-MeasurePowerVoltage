@@ -14,7 +14,7 @@ extern MainDataStruct maindata;
 extern RuntimeStatus runtimedata;
 extern DigitalIO digitalio;
 extern ModbusRTU_Protocol *modbuscmd;
-
+extern HMI_Command *hmicmd;
 
 CMD g_cmdFunc[] = {
 //在這新增function name 以及所呼叫的function
@@ -30,13 +30,11 @@ CMD g_cmdFunc[] = {
 	{"getmicros", getMicros},
 	{"out", cmdOutput},
 	{"in", cmdInput},
-	{"TestModbusRTU",cmdTestModbusRTU},
-	{"SetRPM",Cmd_SetRPM},	
-	{"SetStep",cmd_SetStep},
-	{"Absolute_position",cmd_Absolute_position},
-	{"Emergency_Stop",cmd_Emergency_Stop},
-	{"Search_Home",cmd_Search_Home},
-	{"SendCommandTest",cmd_SendCommandTest},
+    {"ESONCommandTest", cmd_ESONCommandTest},
+    {"ReadVoltage", cmd_ReadVoltage},
+    {"ReadWattage", cmd_ReadWattage},
+    {"Workindex", cmd_Workindex},
+    {"SendStartStop",cmd_SendStartStop},
 	{"?", showHelp}
 };
 
@@ -240,114 +238,104 @@ void cmdInput(void)
 	cmd_port->println("Sensor: " + String(getInput(pinindex)));
 }
 
-void cmdTestModbusRTU(void)
+void cmd_ESONCommandTest(void)
 {
-	String arg1;
-	
-	uint16_t recData; //16bit
-	uint8_t	data[32]; //8bit
-//	calc_crc(buffer_clrAlarm, sizeof(buffer_clrAlarm)-2);
-//	Serial.println(calc_crc(buffer_clrAlarm, sizeof(buffer_clrAlarm)-2),HEX);
-//	recData = calc_crc(buffer_clrAlarm, sizeof(buffer_clrAlarm)-2);
-	data[0] = recData & 0xff; //取後8bit的值
-	data[1] = recData >> 8;   //向右shift 8bit
-	Serial.print("HIGH: ");
-	Serial.println(data[0],HEX);
-	Serial.print("LOW: ");
-	Serial.println(data[1],HEX);
-	data[2] = lowByte(recData);
-	data[3] = highByte(recData);	
-	Serial.print("HIGH: ");
-	Serial.println(data[2],HEX);
-	Serial.print("LOW: ");
-	Serial.println(data[3],HEX);
-	Serial.println();
-
-//	sendData(buffer_clrAlarm, sizeof(buffer_clrAlarm) );
-
-}
-
-void Cmd_SetRPM(void)
-{
-	String arg1;
-	long value;
-
+	String arg1,arg2,arg3,arg4,arg5,arg6;
+	long wattage, V_bus, V1, V2, V3, V4;
 	if (!getNextArg(arg1))
 	{
-	  cmd_port->println("No parameter 1");
-	  return;
-	}
-	value = arg1.toInt();
-	modbuscmd->Set_RPM(value);
-}
-
-void cmd_SetStep(void)
-{
-	String arg1;
-	long value;
-
-	if (!getNextArg(arg1))
-	{
-	  cmd_port->println("No parameter 1");
-	  return;
-	}
-	value = arg1.toInt();
-	modbuscmd->Set_Step(value);
-}
-
-void cmd_Absolute_position(void)
-{
-	modbuscmd->Absolute_position();
-}
-
-void cmd_Emergency_Stop(void)
-{
-	modbuscmd->Emergency_Stop();
-}
-
-void cmd_Search_Home(void)
-{
-	modbuscmd->Search_Home();
-}
-
-void cmd_SendCommandTest(void)
-{
-	String arg1,arg2,arg3,arg4,arg5;
-	long ID, FunctionCode, Addr, Datacnt, value;
-	if (!getNextArg(arg1))
-	{
-	  cmd_port->println("No parameter ID");
+	  cmd_port->println("No parameter wattage");
 	  return;
 	}
 	if (!getNextArg(arg2))
 	{
-	  cmd_port->println("No parameter FunctionCode");
+	  cmd_port->println("No parameter V_bus");
 	  return;
 	}
 	if (!getNextArg(arg3))
 	{
-	  cmd_port->println("No parameter Addr");
+	  cmd_port->println("No parameter V1");
 	  return;
 	}
 	if (!getNextArg(arg4))
 	{
-	  cmd_port->println("No parameter Datacnt");
+	  cmd_port->println("No parameter V2");
 	  return;
 	}
 	if (!getNextArg(arg5))
 	{
-	  cmd_port->println("No parameter value");
+	  cmd_port->println("No parameter V3");
 	  return;
 	}
-	ID = arg1.toInt();
-	FunctionCode = arg2.toInt();
-	Addr = arg3.toInt();
-	Datacnt = arg4.toInt();
-	value = arg5.toInt();
-	modbuscmd->Send_Command(ID, FunctionCode, (uint32_t)Addr, (uint32_t)Datacnt, (uint32_t)value);
+	if (!getNextArg(arg6))
+	{
+	  cmd_port->println("No parameter V4");
+	  return;
+	}
+	wattage = arg1.toInt();
+	V_bus = arg2.toInt();
+	V1 = arg3.toInt();
+	V2 = arg4.toInt();
+	V3 = arg5.toInt();
+    V4 = arg6.toInt();
+	hmicmd->Request_Voltage_Result((uint32_t)V_bus, (uint32_t)V1, (uint32_t)V2, (uint32_t)V3, (uint32_t)V4);
+	hmicmd->Request_Wattage_Result((uint32_t)wattage);
 }
 
+void cmd_ReadVoltage(void)
+{
+	String arg1;
+	int value;
+	if (!getNextArg(arg1))
+	{
+	  cmd_port->println("No parameter 1~5");
+	  return;
+	}
+	value = arg1.toInt();
+    ReadVoltage(value);
+//	hmicmd->Request_Voltage_Result((uint32_t)V_bus, (uint32_t)V1, (uint32_t)V2, (uint32_t)V3, (uint32_t)V4);
+//	hmicmd->Request_Wattage_Result((uint32_t)wattage);
+}
 
+void cmd_Workindex(void)
+{
+	String arg1;
+	int value;
+	if (!getNextArg(arg1))
+	{
+        cmd_port->println("No parameter");
+        cmd_port->println("runtimedata.Workindex[STATUS]: " + String(runtimedata.Workindex[STATUS]));
+        return;
+	}
+	value = arg1.toInt();
+    runtimedata.Workindex[STATUS] = value;
+}
+
+void cmd_ReadWattage()
+{
+    modbuscmd->SendWattageCommand();
+}
+void cmd_SendStartStop()
+{
+	String arg1;
+	int value;
+	if (!getNextArg(arg1))
+	{
+        cmd_port->println("No parameter");
+        return;
+	}
+    
+	value = arg1.toInt();
+    if(value == 0 || value ==1)
+        hmicmd->Request_StartStop(value);
+    else
+        return;
+}
+
+void cmd_showVoltage()
+{
+    cmd_port->println("V_0 Real Voltage: " + String(runtimedata.RealV_0));
+}
 
 uint8_t UserCommWorkindex = 0;
 

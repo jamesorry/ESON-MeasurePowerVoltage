@@ -4,7 +4,7 @@
 #include "Arduino.h"
 #include "SoftwareSerial.h"
 
-#define	VERSTR	"2021022103"
+#define	VERSTR	"2021041002"
 
 #define VENDOR	"LienHong"
 
@@ -80,13 +80,13 @@ static const uint8_t ADC_PWMPin[] = {0, 0, 0, A8, 2, A9, 3, A10, 6, A11, 7, A12,
 #define	DGUSII_PORT_BR	115200
 
 #define	RS485_PORT		Serial3
-#define	RS485_PORT_BR	115200
+#define	RS485_PORT_BR	9600
 
-#define	BT_PORT			Serial
-#define	BT_PORT_BR		115200	
+#define	HMI_PORT		Serial1
+#define	HMI_PORT_BR		115200
 
 #define	WLAN_PORT		Serial
-#define	WLAN_PORT_BR	115200	
+#define	WLAN_PORT_BR	115200
 
 
 #elif HMI_CMD_MES_8_IN_8_OUT
